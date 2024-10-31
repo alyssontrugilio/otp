@@ -1,91 +1,56 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-class OTPInputScreen extends StatelessWidget {
-  final TextEditingController _controller = TextEditingController();
-
-  OTPInputScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: SizedBox(
-            width: 400,
-            child: GestureDetector(
-              onTap: () {
-                FocusScope.of(context).requestFocus(FocusNode());
-              },
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  OTPInputWidget(controller: _controller),
-                  Opacity(
-                    opacity:
-                        0.01, // Praticamente invisível, mas ainda funcional
-                    child: TextField(
-                      controller: _controller,
-                      keyboardType: TextInputType.number,
-                      maxLength: 6,
-                      decoration: const InputDecoration(
-                        border: OutlineInputBorder(),
-                        hintText: 'Digite seu OTP',
-                      ),
-                      style: const TextStyle(
-                        color: Colors.transparent,
-                      ),
-                      cursorColor: Colors.black,
-                      enableInteractiveSelection: false,
-                      onChanged: (value) {
-                        if (value.length == 6) {
-                          // Ação ao completar os 6 dígitos
-                        }
-                      },
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
 class OTPInputWidget extends StatefulWidget {
-  final TextEditingController controller;
+  final int length;
+  final double width;
+  final double height;
+  final Color borderColor;
+  final Color focusedBorderColor;
+  final Color errorBorderColor;
+  final ValueChanged<String>? onChanged;
+  final FormFieldValidator<String>? validator;
+  final List<TextInputFormatter>? inputFormatters;
 
-  const OTPInputWidget({super.key, required this.controller});
+  const OTPInputWidget({
+    super.key,
+    this.length = 6,
+    this.width = 44,
+    this.height = 48,
+    this.borderColor = Colors.black,
+    this.focusedBorderColor = Colors.green,
+    this.errorBorderColor = Colors.red,
+    this.onChanged,
+    this.validator,
+    this.inputFormatters,
+  });
 
   @override
   OTPInputWidgetState createState() => OTPInputWidgetState();
 }
 
 class OTPInputWidgetState extends State<OTPInputWidget> {
-  final List<FocusNode> _focusNodes = List.generate(6, (index) => FocusNode());
-  final List<TextEditingController> _controllers =
-      List.generate(6, (index) => TextEditingController());
-  final List<bool> _isFocused = List.generate(6, (index) => false);
+  final TextEditingController _controller = TextEditingController();
+  final List<FocusNode> _focusNodes = [];
+  int _currentIndex = 0;
+  String? _errorText;
+
+  static const double radius = 5.0;
+  static const double fontSize = 17.0;
 
   @override
   void initState() {
     super.initState();
-    widget.controller.addListener(_updateOTP);
-    for (int i = 0; i < _focusNodes.length; i++) {
-      _focusNodes[i].addListener(() {
-        setState(() {
-          _isFocused[i] = _focusNodes[i].hasFocus;
-        });
-      });
+    _controller.addListener(_updateOTP);
+    for (int i = 0; i < widget.length; i++) {
+      _focusNodes.add(FocusNode());
     }
   }
 
   @override
   void dispose() {
-    widget.controller.removeListener(_updateOTP);
+    _controller.removeListener(_updateOTP);
+    _controller.dispose();
     for (var focusNode in _focusNodes) {
       focusNode.dispose();
     }
@@ -94,58 +59,122 @@ class OTPInputWidgetState extends State<OTPInputWidget> {
 
   void _updateOTP() {
     setState(() {
-      final text = widget.controller.text;
-      for (int i = 0; i < _controllers.length; i++) {
-        if (i < text.length) {
-          _controllers[i].text = text[i];
-        } else {
-          _controllers[i].clear();
-        }
+      _currentIndex = _controller.text.length;
+      if (_currentIndex < widget.length) {
+        _focusNodes[_currentIndex].requestFocus();
+      }
+      if (widget.onChanged != null) {
+        widget.onChanged!(_controller.text);
+      }
+      if (widget.validator != null) {
+        _errorText = widget.validator!(_controller.text);
       }
     });
   }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: List.generate(6, (index) {
-        return _buildOTPDigit(index);
-      }),
+    final defaultPinTheme = BoxDecoration(
+      border: Border.all(color: widget.borderColor),
+      borderRadius: BorderRadius.circular(radius),
+    );
+
+    final errorPinTheme = defaultPinTheme.copyWith(
+      border: Border.all(
+        color: widget.errorBorderColor,
+      ),
+    );
+
+    final focusedPinTheme = defaultPinTheme.copyWith(
+      border: Border.all(
+        width: 2,
+        color: widget.focusedBorderColor,
+      ),
+    );
+
+    return Column(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        MouseRegion(
+          cursor: MaterialStateMouseCursor.textable,
+          child: GestureDetector(
+            onTap: () {
+              if (_currentIndex < widget.length) {
+                _focusNodes[_currentIndex].requestFocus();
+              }
+            },
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                  children: List.generate(widget.length, (index) {
+                    return _buildOTPDigit(
+                        index, defaultPinTheme, focusedPinTheme, errorPinTheme);
+                  }),
+                ),
+                Visibility(
+                  visible: false,
+                  maintainState: true,
+                  child: TextField(
+                    controller: _controller,
+                    focusNode: _currentIndex < widget.length
+                        ? _focusNodes[_currentIndex]
+                        : null,
+                    keyboardType: TextInputType.number,
+                    maxLength: widget.length,
+                    decoration: const InputDecoration(
+                      border: OutlineInputBorder(),
+                    ),
+                    inputFormatters: widget.inputFormatters,
+                    style: const TextStyle(color: Colors.transparent),
+                    cursorColor: Colors.transparent,
+                    enableInteractiveSelection: false,
+                    onChanged: (value) {
+                      if (value.length == widget.length) {}
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_errorText != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 8.0, left: 15),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                Text(
+                  _errorText!,
+                  style: TextStyle(
+                    color: widget.errorBorderColor,
+                    fontSize: 12,
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 
-  Widget _buildOTPDigit(int index) {
-    final isNextDigit = widget.controller.text.length == index;
-    final isFocused = _isFocused[index];
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      width: 40,
-      height: 50,
+  Widget _buildOTPDigit(int index, BoxDecoration defaultPinTheme,
+      BoxDecoration focusedPinTheme, BoxDecoration errorPinTheme) {
+    final isCurrent = index == _currentIndex;
+    final decoration = _errorText != null
+        ? errorPinTheme
+        : (isCurrent ? focusedPinTheme : defaultPinTheme);
+    return Container(
+      width: widget.width,
+      height: widget.height,
       alignment: Alignment.center,
-      decoration: BoxDecoration(
-        border: Border.all(
-          color: isFocused || isNextDigit ? Colors.green : Colors.black,
+      decoration: decoration,
+      child: Text(
+        _controller.text.length > index ? _controller.text[index] : '',
+        style: const TextStyle(
+          fontSize: fontSize,
         ),
-        borderRadius: BorderRadius.circular(8),
-      ),
-      child: TextFormField(
-        controller: _controllers[index],
-        focusNode: _focusNodes[index],
-        decoration: const InputDecoration(border: InputBorder.none),
-        inputFormatters: [
-          LengthLimitingTextInputFormatter(1),
-        ],
-        textAlign: TextAlign.center,
-        keyboardType: TextInputType.number,
-        showCursor: true,
-        onChanged: (value) {
-          if (value.isNotEmpty && index < 5) {
-            FocusScope.of(context).requestFocus(_focusNodes[index + 1]);
-          } else if (value.isEmpty && index > 0) {
-            FocusScope.of(context).requestFocus(_focusNodes[index - 1]);
-          }
-        },
       ),
     );
   }

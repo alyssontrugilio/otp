@@ -1,4 +1,7 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:otp/otp_input_widget.dart';
 
 void main() {
@@ -40,7 +43,30 @@ class MyHomePageState extends State<MyHomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Center(child: OTPInputScreen()),
+      body: Center(
+        child: SizedBox(
+          width: 350,
+          child: OTPInputWidget(
+            length: 6,
+            width: 40,
+            height: 50,
+            borderColor: Colors.black,
+            focusedBorderColor: Colors.green,
+            onChanged: (value) {
+              log('OTP changed: $value');
+            },
+            validator: (value) {
+              if (value == null) return null;
+              if (value.isEmpty) return 'Preencha algo';
+              return null;
+            },
+            inputFormatters: [
+              FilteringTextInputFormatter.deny(RegExp(r'\s')),
+              FilteringTextInputFormatter.digitsOnly
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
